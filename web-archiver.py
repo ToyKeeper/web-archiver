@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+from __future__ import print_function
 import os, os.path
 import select
 import shutil
@@ -8,10 +9,18 @@ import subprocess
 import sys
 import time
 
+
 base_dir = os.path.join(os.environ['HOME'], '.cache', 'web-archive')
 
+# forcefully work around python's stupid unicode handling
+reload(sys)
+sys.setdefaultencoding('utf-8')
+# doesn't work:
+#import codecs
+#sys.stdout = codecs.getwriter('utf8')(sys.stdout)
+
 def main(args):
-    prev_chrome_run = time.time() - 3600
+    prev_chrome_run = time.time() - 600
 
     while True:
         grabbed = False
@@ -20,9 +29,9 @@ def main(args):
         urls = get_chrome_history_since(prev_chrome_run)
         prev_chrome_run = time.time()
         if urls:
-            print 'Chrome URLs:'
+            print('Chrome URLs:')
         for url in urls:
-            grab(url)
+            grab(*url)
             grabbed = True
 
         # Grab URLs from the terminal
@@ -31,14 +40,15 @@ def main(args):
             # the user typed something
             if select.select([sys.stdin,],[],[],0.0)[0]:
                 line = sys.stdin.readline()
-                grab(line.strip())
+                grab(line.strip(), None)
                 grabbed = True
             else:
-                if grabbed: print 'Done.'
+                if grabbed: print('Done.')
                 grabbed = False
 
-def grab(url):
-    print 'grab(%s)' % (url)
+def grab(url, title):
+    if not url: return
+    print('grab(%s): %s' % (url, title))
 
     # make a directory for today
     newdir = os.path.join(base_dir, time.strftime('%Y-%m-%d'))
@@ -48,19 +58,23 @@ def grab(url):
 
     # save it to the log
     with open('urls.log', 'a') as fp:
-        fp.write(url + '\n')
+        text = url
+        if title:
+            text = text + '\t' + title
+        fp.write(text + '\n')
 
     # maybe skip it?
     if blacklisted(url):
-        print 'skipping, blacklisted'
+        print('skipping, blacklisted')
         return
 
     # grab the page
+    # TODO: include cookies from browser
     cmd = ('wget', '-p', '-k', '-H', '-o', '/dev/null', url)
     try:
         subprocess.check_output(cmd)
     except subprocess.CalledProcessError, e:
-        print e
+        print(e)
 
 def blacklisted(url):
     if 'www.facebook.com' in url: return True
@@ -80,10 +94,11 @@ def get_chrome_history_since(when):
 
     dbc.execute('select * from urls where last_visit_time > %s' % (chrome_when))
     for row in dbc.fetchall():
-        #print row
+        #print(row)
+        url = row[1]
         title = row[2]
-        print title
-        urls.append(row[1])
+        #print(title)
+        urls.append((url, title))
 
     return urls
 
