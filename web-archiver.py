@@ -17,9 +17,10 @@ def main(args):
         grabbed = False
 
         # Grab URLs from Chromium
-        print 'Chrome URLs:'
         urls = get_chrome_history_since(prev_chrome_run)
         prev_chrome_run = time.time()
+        if urls:
+            print 'Chrome URLs:'
         for url in urls:
             grab(url)
             grabbed = True
@@ -39,18 +40,23 @@ def main(args):
 def grab(url):
     print 'grab(%s)' % (url)
 
-    if blacklisted(url):
-        print 'skipping, blacklisted'
-        return
-
     # make a directory for today
     newdir = os.path.join(base_dir, time.strftime('%Y-%m-%d'))
     if not os.path.exists(newdir):
         os.makedirs(newdir)
     os.chdir(newdir)
 
+    # save it to the log
+    with open('urls.log', 'a') as fp:
+        fp.write(url + '\n')
+
+    # maybe skip it?
+    if blacklisted(url):
+        print 'skipping, blacklisted'
+        return
+
     # grab the page
-    cmd = ('wget', '-p', '-k', '-o', '/dev/null', url)
+    cmd = ('wget', '-p', '-k', '-H', '-o', '/dev/null', url)
     try:
         subprocess.check_output(cmd)
     except subprocess.CalledProcessError, e:
