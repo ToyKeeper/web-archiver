@@ -70,7 +70,8 @@ def grab(url, title):
 
     # grab the page
     # TODO: include cookies from browser
-    cmd = ('wget', '-p', '-k', '-H', '-o', '/dev/null', url)
+    logfile = os.path.join(base_dir, 'wget.log')
+    cmd = ('wget', '-p', '-k', '-H', '--timeout=15', '--tries=3', '-o', logfile, url)
     try:
         subprocess.check_output(cmd)
     except subprocess.CalledProcessError, e:
