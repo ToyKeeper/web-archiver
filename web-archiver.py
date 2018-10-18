@@ -20,7 +20,7 @@ sys.setdefaultencoding('utf-8')
 #sys.stdout = codecs.getwriter('utf8')(sys.stdout)
 
 def main(args):
-    prev_chrome_run = time.time() - 600
+    prev_chrome_run = time.time() - 60
 
     while True:
         grabbed = False
@@ -35,7 +35,7 @@ def main(args):
             grabbed = True
 
         # Grab URLs from the terminal
-        for i in range(60):
+        for i in range(10):
             time.sleep(1)
             # the user typed something
             if select.select([sys.stdin,],[],[],0.0)[0]:
@@ -51,7 +51,8 @@ def grab(url, title):
     print('grab(%s): %s' % (url, title))
 
     # make a directory for today
-    newdir = os.path.join(base_dir, time.strftime('%Y-%m-%d'))
+    # or maybe even per-hour, because people delete posts sometimes
+    newdir = os.path.join(base_dir, time.strftime('%Y/%m/%d/%H'))
     if not os.path.exists(newdir):
         os.makedirs(newdir)
     os.chdir(newdir)
@@ -78,7 +79,10 @@ def grab(url, title):
         print(e)
 
 def blacklisted(url):
-    if 'www.facebook.com' in url: return True
+    if 'www.facebook.com' in url:
+        if 'photo' in url:
+            return False
+        return True
     return False
 
 def get_chrome_history_since(when):
@@ -93,7 +97,7 @@ def get_chrome_history_since(when):
     dbc = db.cursor()
     #help(dbc)
 
-    dbc.execute('select * from urls where last_visit_time > %s' % (chrome_when))
+    dbc.execute('select * from urls where last_visit_time >= %s' % (chrome_when))
     for row in dbc.fetchall():
         #print(row)
         url = row[1]
