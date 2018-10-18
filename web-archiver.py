@@ -19,16 +19,15 @@ sys.setdefaultencoding('utf-8')
 #import codecs
 #sys.stdout = codecs.getwriter('utf8')(sys.stdout)
 
+
 def main(args):
-    prev_chrome_run = time.time() - 60
 
     while True:
         grabbed = False
 
         # Grab URLs from Chromium
-        foo = time.time()
-        urls = get_chrome_history_since(prev_chrome_run)
-        prev_chrome_run = foo
+        prev_chrome_run = time.time()
+        urls = get_chrome_history_since_last()
         if urls:
             print('Chrome URLs:')
         for url in urls:
@@ -36,8 +35,8 @@ def main(args):
             grabbed = True
 
         # Grab URLs from the terminal
-        for i in range(20):
-            time.sleep(1)
+        while (prev_chrome_run + 10) > time.time():
+            time.sleep(0.2)
             # the user typed something
             if select.select([sys.stdin,],[],[],0.0)[0]:
                 line = sys.stdin.readline()
@@ -46,6 +45,7 @@ def main(args):
             else:
                 if grabbed: print('Done.')
                 grabbed = False
+
 
 def grab(url, title):
     if not url: return
@@ -59,8 +59,9 @@ def grab(url, title):
     os.chdir(newdir)
 
     # save it to the log
-    with open('urls.log', 'a') as fp:
-        text = url
+    with open('../urls.log', 'a') as fp:
+        when = time.strftime('%Y-%m-%d %H:%M:%S')
+        text = when + '\t' + url
         if title:
             text = text + '\t' + title
         fp.write(text + '\n')
@@ -79,37 +80,89 @@ def grab(url, title):
     except subprocess.CalledProcessError, e:
         print(e)
 
+
 def blacklisted(url):
-    if 'www.facebook.com' in url:
-        if 'photo' in url:
-            return False
-        return True
+    patterns = [
+            'www.facebook.com',
+            'connect.facebook.net',
+            ]
+    for p in patterns:
+        if p in url:
+            return True
+    #if 'www.facebook.com' in url:
+    #    # facebook photo URLs no longer contain anything good...
+    #    # ... and they're frigging huge now -- 2.4 MiB of random shit
+    #    #if 'photo' in url:
+    #    #    return False
+    #    return True
     return False
 
-def get_chrome_history_since(when):
+
+def logged(f):
+    def temp(*args, **kwargs):
+        name = f.__name__
+        log('%s()' % (name,))
+        val = f(*args, **kwargs)
+        log('%s() done' % (name,))
+        return val
+    return temp
+
+
+#@logged
+def get_chrome_history_since_last():
     urls = []
 
     hist_file = os.path.join(os.environ['HOME'],'.config/chromium/Default/History')
     temp_hist_file = hist_file + '.temp'
     shutil.copyfile(hist_file, temp_hist_file)
-    chrome_when = utc_to_chrome(when)
 
     db = sqlite3.connect(temp_hist_file)
     dbc = db.cursor()
     #help(dbc)
 
-    dbc.execute('select * from urls where last_visit_time >= %s' % (chrome_when))
+    # grab history since last successful value, if possible...
+    if hasattr(get_chrome_history_since_last, 'last_timestamp'):
+        chrome_when = get_chrome_history_since_last.last_timestamp + 1
+    else:
+        # otherwise, get the most recent value for comparison
+        query = 'select * from urls order by last_visit_time desc limit 1'
+        dbc.execute(query)
+        row = dbc.fetchone()
+        print('Last URL loaded: %s' % (row,))
+        timestamp = row[5]
+        get_chrome_history_since_last.last_timestamp = timestamp
+        chrome_when = timestamp + 1
+
+    query = 'select * from urls where last_visit_time >= %s' % (chrome_when)
+    #log(query)
+    dbc.execute(query)
     for row in dbc.fetchall():
         #print(row)
         url = row[1]
         title = row[2]
+        timestamp = row[5]
+        get_chrome_history_since_last.last_timestamp = timestamp
         #print(title)
         urls.append((url, title))
 
     return urls
 
+
+def log(msg):
+    now = time.strftime('%Y-%m-%d %H:%M:%S')
+    subsec = ('%.3f' % (time.time() % 1.0))[2:]
+    print('%s.%s %s' % (now, subsec, msg))
+
+
 def utc_to_chrome(when):
-    return int((when + 11644473600) * 1000000)
+    # Chrome timestamps are formatted as the number of microseconds since 
+    # 1601-01-01
+    # sqlite3 'select strftime('%s', '1601-01-01');'
+    seconds_from_1600_to_1970 = 11644473600
+    ans = int((when + seconds_from_1600_to_1970) * 1000000)
+    print('utc_to_chrome(%s) => %s' % (when, ans))
+    return ans
+
 
 if __name__ == "__main__":
     import sys
