@@ -26,8 +26,9 @@ def main(args):
         grabbed = False
 
         # Grab URLs from Chromium
+        foo = time.time()
         urls = get_chrome_history_since(prev_chrome_run)
-        prev_chrome_run = time.time()
+        prev_chrome_run = foo
         if urls:
             print('Chrome URLs:')
         for url in urls:
@@ -35,7 +36,7 @@ def main(args):
             grabbed = True
 
         # Grab URLs from the terminal
-        for i in range(10):
+        for i in range(20):
             time.sleep(1)
             # the user typed something
             if select.select([sys.stdin,],[],[],0.0)[0]:
