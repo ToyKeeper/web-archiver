@@ -52,7 +52,7 @@ def main(args):
 
 def grab(url, title):
     if not url: return
-    print('grab(%s): %s' % (url, title))
+    log('grab(%s): %s' % (url, title))
 
     # make a directory for today
     # or maybe even per-hour, because people delete posts sometimes
@@ -81,7 +81,7 @@ def grab(url, title):
     try:
         subprocess.check_output(cmd)
     except subprocess.CalledProcessError, e:
-        print(e)
+        log(e)
 
 
 def blacklisted(url):
