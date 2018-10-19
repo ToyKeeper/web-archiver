@@ -43,8 +43,11 @@ def main(args):
                 grab(line.strip(), None)
                 grabbed = True
             else:
-                if grabbed: print('Done.')
+                if grabbed: log('Done.')
                 grabbed = False
+
+        if grabbed: log('Done.')
+        grabbed = False
 
 
 def grab(url, title):
