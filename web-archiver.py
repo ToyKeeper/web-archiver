@@ -11,6 +11,7 @@ import time
 
 
 base_dir = os.path.join(os.environ['HOME'], '.cache', 'web-archive')
+cookiefile = os.path.join(os.environ['HOME'], '.wget/cookies.txt')
 
 # forcefully work around python's stupid unicode handling
 reload(sys)
@@ -77,7 +78,7 @@ def grab(url, title):
     # grab the page
     # TODO: include cookies from browser
     logfile = os.path.join(base_dir, 'wget.log')
-    cmd = ('wget', '-p', '-k', '-H', '--timeout=15', '--tries=3', '-o', logfile, url)
+    cmd = ('wget', '-p', '-k', '-H', '--timeout=15', '--tries=3', '--load-cookies', cookiefile, '-o', logfile, url)
     try:
         subprocess.check_output(cmd)
     except subprocess.CalledProcessError, e:
