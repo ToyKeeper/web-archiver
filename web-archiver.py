@@ -12,6 +12,7 @@ import time
 
 base_dir = os.path.join(os.environ['HOME'], '.cache', 'web-archive')
 cookiefile = os.path.join(os.environ['HOME'], '.wget/cookies.txt')
+queuefile = '%s/%s' % (base_dir, 'queue')
 
 # forcefully work around python's stupid unicode handling
 reload(sys)
@@ -24,7 +25,7 @@ sys.setdefaultencoding('utf-8')
 def main(args):
 
     while True:
-        grabbed = False
+        grabbed = 0
 
         # Grab URLs from Chromium
         prev_chrome_run = time.time()
@@ -33,7 +34,7 @@ def main(args):
             print('Chrome URLs:')
         for url in urls:
             grab(*url)
-            grabbed = True
+            grabbed += 1
 
         # Grab URLs from the terminal
         while (prev_chrome_run + 10) > time.time():
@@ -41,14 +42,18 @@ def main(args):
             # the user typed something
             if select.select([sys.stdin,],[],[],0.0)[0]:
                 line = sys.stdin.readline()
-                grab(line.strip(), None)
-                grabbed = True
-            else:
-                if grabbed: log('Done.')
-                grabbed = False
+                line = line.strip()
+                if line:
+                    grab(line, None)
+                    grabbed += 1
+                    log('...')
+            #else:
+            #    if grabbed: log('Done.')
+            #    #grabbed = False
 
-        if grabbed: log('Done.')
-        grabbed = False
+        grabbed += poll_queuefile()
+
+        if grabbed: log('Done. (%i urls)' % (grabbed))
 
 
 def grab(url, title):
@@ -150,6 +155,24 @@ def get_chrome_history_since_last():
         urls.append((url, title))
 
     return urls
+
+
+def poll_queuefile():
+    grabbed = 0
+    if os.path.exists(queuefile):
+        fp = open(queuefile, 'r')
+        lines = fp.readlines()
+        fp.close()
+        if lines:
+            # remove or empty the file
+            #os.unlink(queuefile)
+            open(queuefile, 'w').close()
+
+            for line in lines:
+                grab(line.strip(), None)
+                grabbed += 1
+
+    return grabbed
 
 
 def log(msg):
