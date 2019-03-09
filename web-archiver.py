@@ -80,6 +80,29 @@ def grab(url, title):
         print('skipping, blacklisted')
         return
 
+    # keep track of the last few URLs, skip if this one was already
+    # grabbed within the past ~5 minutes or the past ~2 URLs
+    if not hasattr(grab, 'cache'):
+        grab.cache = []
+    now = time.time()
+    # cache cleaning
+    recent = []
+    i = 0
+    while i < len(grab.cache):
+        c_url, c_time = grab.cache[i]
+        if c_time < now - (3*60):  # expire after 3 minutes
+            del grab.cache[i]
+        else:
+            recent.append(c_url)
+            i += 1
+    # skip URL if too recent in cache
+    if url in recent:
+        print('skipping, grabbed too recently')
+        return
+
+    # add new URL to cache
+    grab.cache.append((url, now))
+
     # grab the page
     # TODO: include cookies from browser
     logfile = os.path.join(base_dir, 'wget.log')
@@ -94,6 +117,7 @@ def blacklisted(url):
     patterns = [
             'www.facebook.com',
             'connect.facebook.net',
+            'about:splash',
             ]
     for p in patterns:
         if p in url:
