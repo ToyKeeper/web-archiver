@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 
-from __future__ import print_function
 import os, os.path
 import select
 import shutil
@@ -15,11 +14,16 @@ cookiefile = os.path.join(os.environ['HOME'], '.wget/cookies.txt')
 queuefile = '%s/%s' % (base_dir, 'queue')
 
 # forcefully work around python's stupid unicode handling
+# python2
 reload(sys)
 sys.setdefaultencoding('utf-8')
 # doesn't work:
 #import codecs
 #sys.stdout = codecs.getwriter('utf8')(sys.stdout)
+## python3
+#import importlib
+#importlib.reload(sys)
+##sys.setdefaultencoding('utf-8')
 
 
 def main(args):
@@ -29,7 +33,11 @@ def main(args):
 
         # Grab URLs from Chromium
         prev_chrome_run = time.time()
-        urls = get_chrome_history_since_last()
+        urls = []
+        try:
+            urls = get_chrome_history_since_last()
+        except sqlite3.OperationalError:
+            print('Chrome History... failed')
         if urls:
             print('Chrome URLs:')
         for url in urls:
@@ -109,7 +117,7 @@ def grab(url, title):
     cmd = ('wget', '-p', '-k', '-H', '--timeout=15', '--tries=3', '--load-cookies', cookiefile, '-o', logfile, url)
     try:
         subprocess.check_output(cmd)
-    except subprocess.CalledProcessError, e:
+    except subprocess.CalledProcessError as e:
         log(e)
 
 
@@ -118,6 +126,7 @@ def blacklisted(url):
             'www.facebook.com',
             'connect.facebook.net',
             'about:splash',
+            'discordapp.com/channels/',
             ]
     for p in patterns:
         if p in url:
@@ -146,10 +155,30 @@ def get_chrome_history_since_last():
     urls = []
 
     hist_file = os.path.join(os.environ['HOME'],'.config/chromium/Default/History')
+    #temp_hist_file = os.path.join(os.environ['HOME'],'.config/chromium/foo/Foo')
+    # Stupid, nasty kludge: Chrome keeps its databases locked at all times,
+    # and SQLite absolutely refuses to open the file even as read-only,
+    # and symlinks/hardlinks/bind-mounts don't help, so the only workable
+    # solution is to copy the file before reading from it...  which sucks.
+    # Especially when Chrome's history file is hundreds of megabytes.
     temp_hist_file = hist_file + '.temp'
-    shutil.copyfile(hist_file, temp_hist_file)
+
+    # if file hasn't been updated, abort
+    try:
+        real, temp = os.stat(hist_file), os.stat(temp_hist_file)
+        if real.st_mtime <= temp.st_mtime:
+            #print('Chrome History... not updated, skipping')
+            return urls
+    except OSError:  # if file doesn't exist, maybe we haven't made it yet
+        pass
+
+    print('Chrome History... opening')
+
+    #shutil.copyfile(hist_file, temp_hist_file)
+    run('rsync', '-a', hist_file, temp_hist_file)
 
     db = sqlite3.connect(temp_hist_file)
+    #db = sqlite3.connect('file:%s?mode=ro' % temp_hist_file, uri=True)  # python3 only
     dbc = db.cursor()
     #help(dbc)
 
@@ -178,6 +207,7 @@ def get_chrome_history_since_last():
         #print(title)
         urls.append((url, title))
 
+    print('Chrome History... done (%s new items)' % (len(urls)))
     return urls
 
 
@@ -213,6 +243,23 @@ def utc_to_chrome(when):
     ans = int((when + seconds_from_1600_to_1970) * 1000000)
     print('utc_to_chrome(%s) => %s' % (when, ans))
     return ans
+
+
+def run(*cmd):
+    """Execute a command (tuple), return its errcode and text output"""
+    err = 0
+    text = ''
+    print('run: %s' % (cmd,))
+
+    # catches stdout+stderr+retcode
+    p = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT, close_fds=True)
+    # wait for process to finish and get its output
+    stdout, foo = p.communicate()
+    text = stdout.decode()
+    err = p.returncode
+
+    return err, text
 
 
 if __name__ == "__main__":
