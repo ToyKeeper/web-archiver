@@ -299,6 +299,8 @@ def blacklisted(url):
     patterns = [
             '^Error$',
             'www.facebook.com',
+            'facebook.com/notifications',
+            'facebook.com/messages',
             'connect.facebook.net',
             '^about:splash$',
             'discordapp.com/channels/',
