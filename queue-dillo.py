@@ -65,7 +65,6 @@ def logtail():
 
     home = os.environ['HOME']
     inpath = '%s/.xsession-errors' % home
-    #outpath = '%s/.cache/web-archive/queue' % home
 
     urlpat = re.compile(r'''^Nav_open_url:.*url='([^']+)'$''')
 
@@ -74,19 +73,11 @@ def logtail():
         if found:
             url = found.group(1)
             print('archive: %s' % url)
-            #append(url, outpath)
-            ##archive(url, outpath)
             with queue_lock:
                 queue.append(url)
 
         if quit:
             return
-
-
-#def append(text, path):
-#    fp = open(path, 'at')
-#    fp.write(text + '\n')
-#    fp.close()
 
 
 def tail(cmd):
