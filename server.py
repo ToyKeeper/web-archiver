@@ -109,9 +109,9 @@ def frontpage():
     For example:<br />
     <pre>
     [
-      "url1",
-      ["url2"],
-      ["url3", "Title 3"],
+      "http://example.com/1",
+      ["http://example.com/2"],
+      ["http://example.com/3", "Page Title 3"],
     ]
     </pre>
 
