@@ -15,7 +15,7 @@ from flask import request, jsonify
 
 
 program_name = 'web-archiver'
-dry_run = True
+dry_run = False
 
 base_dir = os.path.join(os.environ['HOME'], '.cache', 'web-archive')
 cookiefile = os.path.join(os.environ['HOME'], '.wget/cookies.txt')
@@ -33,6 +33,7 @@ tcp_port = 4812
 import importlib
 importlib.reload(sys)
 #sys.setdefaultencoding('utf-8')
+# TODO: test to make sure unicode page titles don't cause a crash
 
 web = flask.Flask(program_name)
 web.config["DEBUG"] = True
@@ -46,22 +47,20 @@ def main(args):
     """web-archiver.py
     A tool to monitor URLs opened, and archive a copy.
     Usage: web-archiver.py [OPTIONS]
-      -r HOST  --remote   Send URLs to HOST instead of archiving locally.
+      -d       --dry-run  Don't actually archive URLs, just print debug info
     """
 
     global mode
     global queue_lock
     global quit
-    global remote_host
+    global dry_run
 
     i = 0
     while i < len(args):
         a = args[i]
 
-        if a in ('-r', '--remote'):
-            i += 1
-            mode = 'remote'
-            remote_host = args[i]
+        if a in ('-d', '--dry-run'):
+            dry_run = True
 
         else:
             print(main.__doc__)
@@ -170,7 +169,7 @@ def submit():
         result.append(task)
         with queue_lock:
             queue.append(task)
-            log('queue: %s' % (task,))
+            #log('queue: %s' % (task,))
 
     return jsonify(result)
 
@@ -206,15 +205,9 @@ def archiver():
         urls = []
         with queue_lock:
             while queue:
-                log('dequeue: %s' % (queue[0],))
+                #log('dequeue: %s' % (queue[0],))
                 urls.append(queue[0])
                 del queue[0]
-
-        if urls:
-            print('Submitted URLs:')
-        for url in urls:
-            grab(*url)
-            grabbed += 1
 
         # Grab URLs from the terminal
         # if the user typed something
@@ -222,11 +215,17 @@ def archiver():
             line = sys.stdin.readline()
             line = line.strip()
             if line:
-                grab(line, None)
-                grabbed += 1
-                log('...')
+                urls.append((line, None))
 
-        grabbed += poll_queuefile()
+        # Grab URLs from the queue file
+        urls.extend(poll_queuefile())
+
+        if urls:
+            print('Queued URLs: %s' % (len(urls)))
+
+        for url in urls:
+            grab(*url)
+            grabbed += 1
 
         if grabbed: log('Done. (%i urls)' % (grabbed))
 
@@ -324,21 +323,24 @@ def logged(f):
 
 
 def poll_queuefile():
-    grabbed = 0
-    if os.path.exists(queuefile):
-        fp = open(queuefile, 'r')
-        lines = fp.readlines()
-        fp.close()
-        if lines:
-            # remove or empty the file
-            #os.unlink(queuefile)
-            open(queuefile, 'w').close()
+    urls = []
 
-            for line in lines:
-                grab(line.strip(), None)
-                grabbed += 1
+    if not os.path.exists(queuefile):
+        return urls
 
-    return grabbed
+    fp = open(queuefile, 'r')
+    lines = fp.readlines()
+    fp.close()
+    if lines:
+        # replace it with an empty file
+        open(queuefile, 'w').close()
+
+    for line in lines:
+        url = line.strip()
+        if url:
+            urls.append((url, None))
+
+    return urls
 
 
 def log(msg):
