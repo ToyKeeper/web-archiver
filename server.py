@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 
 import os, os.path
+import platform
 import re
 import select
 import shutil
+import socket
 import sqlite3
 import subprocess
 import sys
@@ -140,6 +142,14 @@ def submit():
 
     global queue, queue_lock
 
+    # who is this request from?
+    ip = request.environ.get('HTTP_X_REAL_IP', request.remote_addr)
+    hostname = ip
+    try:
+        hostname = socket.gethostbyaddr(ip)[0]
+    except socket.herror:
+        pass
+
     urls = request.json
 
     if not urls:
@@ -165,11 +175,11 @@ def submit():
         else:
             url, title = 'Error', 'expected str or list, got %s' % (str(type(row)),)
 
-        task = (url, title)
+        task = (url, title, ip, hostname)
         result.append(task)
         with queue_lock:
             queue.append(task)
-            #log('queue: %s' % (task,))
+            #log('queue: %s' % (task,), 'debug')
 
     return jsonify(result)
 
@@ -205,7 +215,7 @@ def archiver():
         urls = []
         with queue_lock:
             while queue:
-                #log('dequeue: %s' % (queue[0],))
+                #log('dequeue: %s' % (queue[0],), 'debug')
                 urls.append(queue[0])
                 del queue[0]
 
@@ -215,7 +225,7 @@ def archiver():
             line = sys.stdin.readline()
             line = line.strip()
             if line:
-                urls.append((line, None))
+                urls.append((line, None, None, 'stdin.queue'))
 
         # Grab URLs from the queue file
         urls.extend(poll_queuefile())
@@ -234,9 +244,10 @@ def archiver():
     archiver.running = False
 
 
-def grab(url, title):
+def grab(url, title=None, ip=None, hostname=None):
     if not url: return
-    log('grab(%s): %s' % (url, title))
+    iphost = fmt_iphost(ip, hostname)
+    log('grab(%s): %s' % (url, title), iphost)
 
     # make a directory for today
     # or maybe even per-hour, because people delete posts sometimes
@@ -248,7 +259,7 @@ def grab(url, title):
     # save it to the log
     with open('../urls.log', 'a') as fp:
         when = time.strftime('%Y-%m-%d %H:%M:%S')
-        text = when + '\t' + url
+        text = when + ' ' + iphost + '\t' + url
         if title:
             text = text + '\t' + title
         fp.write(text + '\n')
@@ -288,10 +299,10 @@ def grab(url, title):
     try:
         if not dry_run:
             subprocess.check_output(cmd)
-        else:
-            log('grab(): %s' % (cmd,))
+        #else:
+        #    log('grab(): %s' % (cmd,), 'debug')
     except subprocess.CalledProcessError as e:
-        log(e)
+        log(e, 'error')
 
 
 def blacklisted(url):
@@ -312,6 +323,14 @@ def blacklisted(url):
             return True
 
     return False
+
+
+def log(msg, host=None):
+    now = time.strftime('%Y-%m-%d %H:%M:%S')
+    subsec = ('%.3f' % (time.time() % 1.0))[2:]
+    if not host:
+        host = 'server'
+    print('%s.%s %s\t%s' % (now, subsec, host, msg))
 
 
 def logged(f):
@@ -340,15 +359,24 @@ def poll_queuefile():
     for line in lines:
         url = line.strip()
         if url:
-            urls.append((url, None))
+            urls.append((url, None, None, 'file.queue'))
 
     return urls
 
 
-def log(msg):
-    now = time.strftime('%Y-%m-%d %H:%M:%S')
-    subsec = ('%.3f' % (time.time() % 1.0))[2:]
-    print('%s.%s %s' % (now, subsec, msg))
+def fmt_iphost(ip, host):
+    if ip == host:
+        return host
+
+    if not host:
+        return ip
+
+    if (not ip) or ('127.0.0.1' == ip):
+        if 'localhost' == host:
+            host = platform.node()
+        return host
+
+    return '%s[%s]' % (host, ip)
 
 
 def run(*cmd):
