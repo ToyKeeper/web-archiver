@@ -83,6 +83,13 @@ def logged(f):
 def get_chrome_history_since_last():
     urls = []
 
+    # force load on first run
+    try:
+        first = getattr(get_chrome_history_since_last, 'first')
+    except AttributeError:
+        first = True
+        get_chrome_history_since_last.first = False
+
     hist_file = os.path.join(os.environ['HOME'],'.config/chromium/Default/History')
     #temp_hist_file = os.path.join(os.environ['HOME'],'.config/chromium/foo/Foo')
     # Stupid, nasty kludge: Chrome keeps its databases locked at all times,
@@ -97,7 +104,8 @@ def get_chrome_history_since_last():
         real, temp = os.stat(hist_file), os.stat(temp_hist_file)
         if real.st_mtime <= temp.st_mtime:
             #print('Chrome History... not updated, skipping')
-            return urls
+            if not first:
+                return urls
     except OSError:  # if file doesn't exist, maybe we haven't made it yet
         pass
 
