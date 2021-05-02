@@ -35,7 +35,6 @@ tcp_port = 4812
 import importlib
 importlib.reload(sys)
 #sys.setdefaultencoding('utf-8')
-# TODO: test to make sure unicode page titles don't cause a crash
 
 web = flask.Flask(program_name)
 web.config["DEBUG"] = True
