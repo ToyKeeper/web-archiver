@@ -31,6 +31,8 @@ def main(args):
     """
 
     cl = Client()
+    set_defaults(cl.cfg)
+    cl.start()
 
     try:
         chrome_monitor(cl)
@@ -40,6 +42,22 @@ def main(args):
     cl.stop()
 
 
+def set_defaults(cfg):
+    home = os.environ['HOME']
+    inpath = os.path.join(home,'.config/chromium/Default/History')
+
+    cfg.doc(chrome_history_file='Which Chrome History file to watch for new URLs')
+    cfg.default(chrome_history_file=inpath)
+
+    cfg.doc(chrome_polling_time=[
+        'How often to check Chrome history (in seconds)',
+        'Reading the log requires copying the file, so it can be pretty',
+        'disk-intensive at low polling times during an active session.',
+        'No copies are made unless the file has been updated though.',
+        ])
+    cfg.default(chrome_polling_time=10)
+
+
 def chrome_monitor(client):
     while not quit:
 
@@ -47,7 +65,7 @@ def chrome_monitor(client):
         prev_chrome_run = time.time()
         urls = []
         try:
-            urls = get_chrome_history_since_last()
+            urls = get_chrome_history_since_last(client.cfg)
         except sqlite3.OperationalError:
             print('Chrome History... failed')
         if urls:
@@ -56,7 +74,7 @@ def chrome_monitor(client):
             for url, title in urls:
                 client.grab(url, title)
 
-        while (prev_chrome_run + 10) > time.time():
+        while (prev_chrome_run + client.cfg.chrome_polling_time) > time.time():
             time.sleep(0.2)
 
             if quit:
@@ -80,7 +98,7 @@ def logged(f):
 
 
 #@logged
-def get_chrome_history_since_last():
+def get_chrome_history_since_last(cfg):
     urls = []
 
     # force load on first run
@@ -90,7 +108,7 @@ def get_chrome_history_since_last():
         first = True
         get_chrome_history_since_last.first = False
 
-    hist_file = os.path.join(os.environ['HOME'],'.config/chromium/Default/History')
+    hist_file = cfg.chrome_history_file
     #temp_hist_file = os.path.join(os.environ['HOME'],'.config/chromium/foo/Foo')
     # Stupid, nasty kludge: Chrome keeps its databases locked at all times,
     # and SQLite absolutely refuses to open the file even as read-only,

@@ -17,6 +17,8 @@ def main(args):
     """
 
     cl = Client()
+    set_defaults(cl.cfg)
+    cl.start()
 
     try:
         logtail(cl)
@@ -26,9 +28,16 @@ def main(args):
     cl.stop()
 
 
-def logtail(client):
+def set_defaults(cfg):
     home = os.environ['HOME']
     inpath = '%s/.xsession-errors' % home
+
+    cfg.doc(dillo_logtail_path='Which file to watch for new URLs')
+    cfg.default(dillo_logtail_path=inpath)
+
+
+def logtail(client):
+    inpath = client.cfg.dillo_logtail_path
 
     urlpat = re.compile(r'''^Nav_open_url:.*url='([^']+)'$''')
 

@@ -4,8 +4,9 @@ import requests
 import threading
 import time
 
-#default_server = 'http://b.xyzz.org:4812/api/v1/submit'
-default_server = 'http://localhost:4812/api/v1/submit'
+import pycfg
+
+program_name = 'web-archiver'
 
 
 def main(args):
@@ -19,7 +20,22 @@ class Client:
         self.queue_lock = threading.Lock()
         self.done = False
         self.urls = []
-        self.retry_time = 30
+
+        self.cfg = pycfg.config(program_name)
+        self.set_defaults()
+
+    def set_defaults(self):
+        cfg = self.cfg
+
+        cfg.doc(server_url='Front page of the archive server')
+        cfg.default(server_url='http://localhost:4812/')
+
+        cfg.doc(retry_time='How long to wait between tries when requests fail')
+        cfg.default(retry_time=30)
+
+    def start(self):
+        self.cfg.load()
+        #self.cfg.validate()
 
         self.thread = threading.Thread(target=self.loop)
         self.thread.start()
@@ -43,6 +59,11 @@ class Client:
         Keep trying until each batch succeeds.
         """
 
+        server_url =  self.cfg.server_url
+        if not server_url.endswith('/'):
+            server_url = server_url + '/'
+        server_url = server_url + 'api/v1/submit'
+
         while not self.done:
 
             # move newly-detected urls into our private list
@@ -54,24 +75,21 @@ class Client:
             # send urls to the archive server
             if self.urls:
                 try:
-                    post(self.urls)
+                    post(self.urls, server_url)
                     self.urls = []
                 except ConnectionError:
                     print('Error: failed to post %s urls, will try again' \
-                          ' in %ss' % (len(self.urls), self.retry_time))
-                    time.sleep(self.retry_time)
+                          ' in %ss' % (len(self.urls), self.cfg.retry_time))
+                    time.sleep(self.cfg.retry_time)
 
             time.sleep(1)
 
 
-def post(urls, server=None):
+def post(urls, server_url):
     """POST urls in json format to a web server.
     """
-    if not server:
-        # TODO: get URI from user config
-        server = default_server
     try:
-        res = requests.post(server, json=urls)
+        res = requests.post(server_url, json=urls)
         if res.ok:
             #print(res.json())
             pass
