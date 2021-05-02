@@ -4,11 +4,10 @@
 import os, os.path
 import sqlite3
 import subprocess
-import threading
 import sys
 import time
 
-from client import post
+from client import Client
 
 # forcefully work around python's stupid unicode handling
 # python2
@@ -23,8 +22,6 @@ importlib.reload(sys)
 #sys.setdefaultencoding('utf-8')
 
 
-queue = []
-queue_lock = None
 quit = False
 
 
@@ -33,51 +30,18 @@ def main(args):
     to my web-archiver task queue so they'll be automatically saved.
     """
 
-    global queue_lock
-
-    queue_lock = threading.Lock()
-
-    web_thread = threading.Thread(target=submit_urls)
-    web_thread.start()
+    cl = Client()
 
     try:
-        chrome_monitor()
+        chrome_monitor(cl)
     except KeyboardInterrupt:
         quit = True
 
-    web_thread.join()
+    cl.stop()
 
 
-def submit_urls():
-    global queue, queue_lock
-
-    urls = []
-
+def chrome_monitor(client):
     while not quit:
-
-        # move newly-detected urls into our private list
-        with queue_lock:
-            while queue:
-                urls.append(queue[0])
-                del queue[0]
-
-        # send urls to the archive server
-        if urls:
-            try:
-                post(urls)
-                urls = []
-            except ConnectionError:
-                print('Error: failed to post %s urls, will try again' \
-                      % (len(urls),))
-                time.sleep(30)
-
-        time.sleep(1)
-
-
-def chrome_monitor():
-    global queue, queue_lock
-
-    while True:
 
         # Grab URLs from Chromium
         prev_chrome_run = time.time()
@@ -89,9 +53,8 @@ def chrome_monitor():
         if urls:
             print('Chrome URLs: %s' % (len(urls),))
 
-            with queue_lock:
-                for url, title in urls:
-                    queue.append((url, title))
+            for url, title in urls:
+                client.grab(url, title)
 
         while (prev_chrome_run + 10) > time.time():
             time.sleep(0.2)

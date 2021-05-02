@@ -4,13 +4,10 @@
 import os
 import re
 import subprocess
-import threading
 import time
 
-from client import post
+from client import Client
 
-queue = []
-queue_lock = None
 quit = False
 
 
@@ -19,50 +16,17 @@ def main(args):
     URLs to my web-archiver task queue so they'll be automatically saved.
     """
 
-    global queue_lock
-
-    queue_lock = threading.Lock()
-
-    web_thread = threading.Thread(target=submit_urls)
-    web_thread.start()
+    cl = Client()
 
     try:
-        logtail()
+        logtail(cl)
     except KeyboardInterrupt:
         quit = True
 
-    web_thread.join()
+    cl.stop()
 
 
-def submit_urls():
-    global queue, queue_lock
-
-    urls = []
-
-    while not quit:
-
-        # move newly-detected urls into our private list
-        with queue_lock:
-            while queue:
-                urls.append(queue[0])
-                del queue[0]
-
-        # send urls to the archive server
-        if urls:
-            try:
-                post(urls)
-                urls = []
-            except ConnectionError:
-                print('Error: failed to post %s urls, will try again' \
-                      % (len(urls),))
-                time.sleep(30)
-
-        time.sleep(1)
-
-
-def logtail():
-    global queue, queue_lock
-
+def logtail(client):
     home = os.environ['HOME']
     inpath = '%s/.xsession-errors' % home
 
@@ -73,8 +37,7 @@ def logtail():
         if found:
             url = found.group(1)
             print('archive: %s' % url)
-            with queue_lock:
-                queue.append(url)
+            client.grab(url)
 
         if quit:
             return
