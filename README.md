@@ -47,6 +47,22 @@ The server listens for new URLs in a few different ways:
   * **stdin**: You can also just paste URLs into the terminal where the server
     is running. hit Enter, and it'll queue them up for archival.
 
+### Caveats
+
+This archiver uses wget to save data, and wget has some limitations:
+
+  * Does not have access to your browser's cookies or sessions or anything like
+    that, so it can't get copies of pages which are private or require you to
+    be logged in.
+  * No javascript or media plugins.
+
+So...  This is not useful for saving data from Facebook, Gmail, YouTube videos,
+Google Docs, Discord, etc.  What it saves may be very different than what you
+saw in your browser.
+
+However, it works well for things like newspaper articles, forum threads,
+images, and "Web 1.0" style sites in general.
+
 ## Clients
 
 One client is needed per browser per host.
