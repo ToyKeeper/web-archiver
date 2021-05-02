@@ -8,7 +8,7 @@ import threading
 import sys
 import time
 
-from send import post
+from client import post
 
 # forcefully work around python's stupid unicode handling
 # python2

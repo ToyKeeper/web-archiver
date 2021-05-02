@@ -7,7 +7,7 @@ import subprocess
 import threading
 import time
 
-from send import post
+from client import post
 
 queue = []
 queue_lock = None
