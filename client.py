@@ -20,6 +20,8 @@ class Client:
         self.queue_lock = threading.Lock()
         self.done = False
         self.urls = []
+        self.recent = {}  # don't grab the same url twice in a short time
+        self.recent_retention_time = 10  # seconds
 
         self.cfg = pycfg.config(program_name)
         self.set_defaults()
@@ -51,6 +53,15 @@ class Client:
             req = (url, title)
         else:
             req = url
+
+        # don't grab the same thing twice within a few seconds
+        self.clean_recent()
+        if url in self.recent:
+            return
+
+        # remember this request for a few seconds
+        self.recent[url] = time.time()
+        # send it to the archive server
         with self.queue_lock:
             self.queue.append(req)
 
@@ -83,6 +94,18 @@ class Client:
                     time.sleep(self.cfg.retry_time)
 
             time.sleep(1)
+
+    def clean_recent(self):
+        """Remove old entries from 'recent' cache"""
+        now = time.time()
+        rm = []
+        for url in self.recent:
+            when = self.recent[url]
+            if now - when > self.recent_retention_time:
+                rm.append(url)
+
+        for url in rm:
+            del self.recent[url]
 
 
 def post(urls, server_url):
