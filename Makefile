@@ -1,3 +1,5 @@
+all:
+
 README.html: README.md
 	cmark-gfm -t html README.md > README.html
 
